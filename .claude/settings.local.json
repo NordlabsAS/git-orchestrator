@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(target)",
+      "Bash(grep -E --line-buffered \"error\\\\[|^error:|^error |warning:.*generated|Finished|Running `target)",
+      "Bash(App listening *)",
+      "Bash(VITE v *)",
+      "Bash(Local:)",
+      "Bash(ready in *)",
+      "Bash(panicked)",
+      "Bash(failed to *)",
+      "Bash(cannot find *)",
+      "Bash(unresolved)",
+      "Bash(Compiling repo-dashboard *)",
+      "Bash(Compiling tauri-app *)",
+      "Bash(Compiling tauri *)",
+      "Bash(npm run *)"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window — dialog open, opener restricted to http/https URLs and local paths",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "http://**" },
+        { "url": "https://**" }
+      ]
+    }
+  ]
+}

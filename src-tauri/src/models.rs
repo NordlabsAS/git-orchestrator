@@ -1,0 +1,198 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Repo {
+    pub id: i64,
+    pub name: String,
+    pub path: String,
+    pub priority: i64,
+    #[serde(rename = "addedAt")]
+    pub added_at: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Dirty {
+    Clean,
+    Unstaged,
+    Staged,
+    Untracked,
+    Mixed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Commit {
+    pub sha: String,
+    #[serde(rename = "shaShort")]
+    pub sha_short: String,
+    pub message: String,
+    pub author: String,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RepoStatus {
+    pub id: i64,
+    pub name: String,
+    pub path: String,
+    pub branch: String,
+    #[serde(rename = "defaultBranch")]
+    pub default_branch: String,
+    pub ahead: u32,
+    pub behind: u32,
+    pub dirty: Dirty,
+    #[serde(rename = "hasUpstream")]
+    pub has_upstream: bool,
+    #[serde(rename = "lastFetch")]
+    pub last_fetch: Option<String>,
+    #[serde(rename = "latestCommit")]
+    pub latest_commit: Option<Commit>,
+    #[serde(rename = "remoteUrl")]
+    pub remote_url: Option<String>,
+    /// True if the repo has a `.gitmodules` file (parent-level dirty state
+    /// may not reflect submodule drift — warn the user).
+    #[serde(rename = "hasSubmodules")]
+    pub has_submodules: bool,
+    /// True when the branch is both ahead and behind its upstream.
+    /// ff-only pull will refuse in this state.
+    pub diverged: bool,
+    /// Count of local commits not on `origin/<default>` when no upstream
+    /// is configured. None when upstream exists (ahead/behind covers it).
+    #[serde(rename = "unpushedNoUpstream")]
+    pub unpushed_no_upstream: Option<u32>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BulkResult {
+    pub id: i64,
+    pub ok: bool,
+    pub message: String,
+    /// Coarse machine-readable classification so the frontend can render
+    /// the right follow-up actions (Open folder, Force pull, Retry, etc.)
+    /// instead of showing opaque stderr.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<BulkReason>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum BulkReason {
+    Ok,
+    OffDefault,
+    Dirty,
+    PathMissing,
+    FetchFailed,
+    PullFailed,
+    StatusFailed,
+}
+
+/// Per-category file counts derived from `git status --porcelain`.
+/// Populates the force-pull disclosure dialog.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DirtyBreakdown {
+    pub staged: u32,
+    pub unstaged: u32,
+    pub untracked: u32,
+}
+
+/// What the user sees BEFORE confirming a force-pull. Summarizes exactly
+/// what will be discarded, fast-forwarded, and preserved.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ForcePullPreview {
+    #[serde(rename = "currentBranch")]
+    pub current_branch: String,
+    #[serde(rename = "defaultBranch")]
+    pub default_branch: String,
+    #[serde(rename = "onDefault")]
+    pub on_default: bool,
+    pub ahead: u32,
+    pub behind: u32,
+    #[serde(rename = "unpushedCommits")]
+    pub unpushed_commits: Vec<Commit>,
+    pub dirty: DirtyBreakdown,
+    #[serde(rename = "remoteHeadShort")]
+    pub remote_head_short: Option<String>,
+}
+
+/// Result of a force-pull, with the info needed to render a reflog-rescue
+/// hint and wire up the session-level "Undo" button.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ForcePullResult {
+    #[serde(rename = "preHeadSha")]
+    pub pre_head_sha: Option<String>,
+    #[serde(rename = "preHeadShort")]
+    pub pre_head_short: Option<String>,
+    #[serde(rename = "postHeadSha")]
+    pub post_head_sha: Option<String>,
+    #[serde(rename = "postHeadShort")]
+    pub post_head_short: Option<String>,
+    #[serde(rename = "discardedCount")]
+    pub discarded_count: u32,
+    pub message: String,
+}
+
+/// One row from the `action_log` table. Surfaced to the frontend when we
+/// render a repo's recent destructive-action history.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActionLogEntry {
+    pub id: i64,
+    #[serde(rename = "repoId")]
+    pub repo_id: i64,
+    pub action: String,
+    #[serde(rename = "preHeadSha")]
+    pub pre_head_sha: Option<String>,
+    #[serde(rename = "postHeadSha")]
+    pub post_head_sha: Option<String>,
+    #[serde(rename = "exitCode")]
+    pub exit_code: i32,
+    #[serde(rename = "stderrExcerpt")]
+    pub stderr_excerpt: Option<String>,
+    #[serde(rename = "startedAt")]
+    pub started_at: String,
+    #[serde(rename = "durationMs")]
+    pub duration_ms: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BulkPullReport {
+    pub updated: Vec<BulkResult>,
+    pub skipped: Vec<BulkResult>,
+    pub blocked: Vec<BulkResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IgnoredPath {
+    pub path: String,
+    #[serde(rename = "addedAt")]
+    pub added_at: String,
+}
+
+/// One candidate surfaced by `scan_folder`. `path` is already normalized.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanEntry {
+    pub path: String,
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+    #[serde(rename = "alreadyAdded")]
+    pub already_added: bool,
+    pub ignored: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanResult {
+    pub parent: String,
+    pub entries: Vec<ScanEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanAddResult {
+    pub added: Vec<Repo>,
+    pub skipped: Vec<ScanSkip>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanSkip {
+    pub path: String,
+    pub reason: String,
+}
