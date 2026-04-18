@@ -8,6 +8,7 @@ import { InfoDialog } from "./components/dialogs/InfoDialog";
 import { RemoveRepoDialog } from "./components/dialogs/RemoveRepoDialog";
 import { ScanFolderDialog } from "./components/dialogs/ScanFolderDialog";
 import { SettingsDialog } from "./components/dialogs/SettingsDialog";
+import { GitSetupBanner } from "./components/GitSetupBanner";
 import { RepoList } from "./components/RepoList";
 import { Sidebar } from "./components/Sidebar";
 import * as api from "./lib/tauri";
@@ -94,6 +95,7 @@ function App() {
     <div className="flex h-full">
       <Sidebar />
       <main className="flex flex-1 flex-col bg-surface-0">
+        <GitSetupBanner />
         <RepoList />
       </main>
 

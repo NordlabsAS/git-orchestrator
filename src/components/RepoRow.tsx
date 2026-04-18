@@ -31,6 +31,7 @@ import { Pill } from "./ui/Pill";
 
 interface Props {
   status: RepoStatus;
+  dragDisabled?: boolean;
 }
 
 function dirtyPill(dirty: Dirty) {
@@ -68,7 +69,7 @@ function dirtyPill(dirty: Dirty) {
   }
 }
 
-export function RepoRow({ status }: Props) {
+export function RepoRow({ status, dragDisabled = false }: Props) {
   const isExpanded = useUiStore((s) => s.expandedIds.has(status.id));
   const openDialog = useUiStore((s) => s.openDialog);
   const refreshOne = useReposStore((s) => s.refreshOne);
@@ -84,7 +85,7 @@ export function RepoRow({ status }: Props) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: status.id });
+  } = useSortable({ id: status.id, disabled: dragDisabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -159,10 +160,20 @@ export function RepoRow({ status }: Props) {
     >
       <div className="flex items-start gap-3 px-3 py-3">
         <button
-          className="mt-1.5 cursor-grab rounded p-1 text-zinc-500 hover:bg-surface-3 hover:text-zinc-300 active:cursor-grabbing"
-          title="Drag to reorder"
-          {...attributes}
-          {...listeners}
+          className={clsx(
+            "mt-1.5 rounded p-1 text-zinc-500 hover:text-zinc-300",
+            dragDisabled
+              ? "cursor-not-allowed opacity-40 hover:bg-transparent hover:text-zinc-500"
+              : "cursor-grab hover:bg-surface-3 active:cursor-grabbing",
+          )}
+          title={
+            dragDisabled
+              ? "Reorder is disabled while a filter, search, or sort is active — reset to rearrange"
+              : "Drag to reorder"
+          }
+          disabled={dragDisabled}
+          {...(dragDisabled ? {} : attributes)}
+          {...(dragDisabled ? {} : listeners)}
         >
           <GripVertical size={16} />
         </button>

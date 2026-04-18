@@ -60,6 +60,10 @@ pub struct RepoStatus {
     /// is configured. None when upstream exists (ahead/behind covers it).
     #[serde(rename = "unpushedNoUpstream")]
     pub unpushed_no_upstream: Option<u32>,
+    /// Total commits reachable from HEAD. `None` on an unborn branch or
+    /// when the count fails — used by the dashboard to sort by repo size.
+    #[serde(rename = "commitCount")]
+    pub commit_count: Option<u32>,
     pub error: Option<String>,
 }
 
@@ -195,4 +199,30 @@ pub struct ScanAddResult {
 pub struct ScanSkip {
     pub path: String,
     pub reason: String,
+}
+
+/// Outcome of an interactive sign-in triggered from the auth-error panel.
+/// Distinguishes a clean success, a user-recoverable timeout, and a hard
+/// failure (the latter surfaces as `Err(String)` at the IPC boundary and
+/// is classified by the existing `gitErrors.ts` pipeline).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignInResult {
+    pub ok: bool,
+    #[serde(rename = "timedOut")]
+    pub timed_out: bool,
+    pub message: String,
+}
+
+/// Result of the one-shot git-setup probe used by the first-run banner.
+/// All fields reflect the user's GLOBAL git state — nothing repo-scoped.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitSetupStatus {
+    pub installed: bool,
+    pub version: Option<String>,
+    #[serde(rename = "userNameSet")]
+    pub user_name_set: bool,
+    #[serde(rename = "userEmailSet")]
+    pub user_email_set: bool,
+    #[serde(rename = "credentialHelperSet")]
+    pub credential_helper_set: bool,
 }

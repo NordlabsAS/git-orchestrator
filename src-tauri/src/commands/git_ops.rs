@@ -3,12 +3,17 @@ use crate::db::queries::NewActionLog;
 use crate::git::{log, runner, status};
 use crate::models::{
     ActionLogEntry, BulkPullReport, BulkReason, BulkResult, Dirty, DirtyBreakdown,
-    ForcePullPreview, ForcePullResult,
+    ForcePullPreview, ForcePullResult, GitSetupStatus, SignInResult,
 };
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
+
+/// Hard cap on the sign-in flow. Long enough for a real device-code /
+/// browser OAuth round-trip (GCM's slowest path), short enough that a
+/// wedged helper can't pin a UI row forever.
+const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(120);
 
 const STDERR_EXCERPT_MAX: usize = 2_000;
 
@@ -304,6 +309,106 @@ pub async fn diagnose_auth(id: i64) -> Result<String, String> {
         let p = Path::new(&path);
         runner::run_git_traced(p, &["fetch", "--dry-run", "--prune", "origin"])
             .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Trigger Git Credential Manager's interactive sign-in flow for a repo's
+/// origin. Runs `git fetch --dry-run origin` WITHOUT the `GCM_INTERACTIVE=Never`
+/// override, so GCM is free to spawn its browser-based OAuth popup (or
+/// device-code UI) when credentials are missing or expired.
+///
+/// Security posture:
+/// - Credentials never enter this process — GCM talks to Windows Credential
+///   Manager (DPAPI) / macOS Keychain / libsecret on its own.
+/// - Frontend passes only `id`, never a URL or command string (invariant #3).
+/// - We don't log stdout/stderr verbatim anywhere; the UI receives a short
+///   sanitized summary via `crate::git::log` parsers / the existing
+///   `gitErrors.ts` classifier.
+/// - Hard 120s timeout via `run_git_interactive` so a wedged helper can't
+///   lock a UI row.
+///
+/// `--dry-run` means this never writes refs or the working tree; it only
+/// verifies auth + remote reachability.
+#[tauri::command]
+pub async fn sign_in_remote(id: i64) -> Result<SignInResult, String> {
+    let repo = load_repo(id).await?;
+    let path = repo.path.clone();
+    tokio::task::spawn_blocking(move || -> Result<SignInResult, String> {
+        let p = Path::new(&path);
+        match runner::run_git_interactive(
+            p,
+            &["fetch", "--dry-run", "--prune", "origin"],
+            SIGN_IN_TIMEOUT,
+        ) {
+            Ok(out) if out.code == 0 => Ok(SignInResult {
+                ok: true,
+                timed_out: false,
+                message: "Signed in — credentials saved by your OS credential helper.".to_string(),
+            }),
+            Ok(out) => Err(merge_stdout_stderr(&out)),
+            Err(runner::GitError::Timeout) => Ok(SignInResult {
+                ok: false,
+                timed_out: true,
+                message: "Sign-in timed out after 2 minutes. Close any browser or credential-manager popups and try again.".to_string(),
+            }),
+            Err(e) => Err(e.to_string()),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// One-shot check of the user's global git setup — used by the first-run
+/// banner to nudge non-technical users through installing and configuring
+/// Git before we try to talk to a remote on their behalf.
+///
+/// Never prompts the user for anything. Never touches the network.
+/// Reads `git --version` and three `git config --global --get` queries.
+#[tauri::command]
+pub async fn git_setup_status() -> Result<GitSetupStatus, String> {
+    tokio::task::spawn_blocking(|| -> Result<GitSetupStatus, String> {
+        // `git --version` — proves git is on PATH.
+        let (installed, version) = match runner::run_git_no_repo(&["--version"]) {
+            Ok(out) if out.code == 0 => {
+                let v = out.stdout.trim();
+                let stripped = v.strip_prefix("git version ").unwrap_or(v);
+                (true, Some(stripped.to_string()))
+            }
+            _ => (false, None),
+        };
+
+        if !installed {
+            return Ok(GitSetupStatus {
+                installed: false,
+                version: None,
+                user_name_set: false,
+                user_email_set: false,
+                credential_helper_set: false,
+            });
+        }
+
+        let user_name_set = matches!(
+            runner::run_git_no_repo(&["config", "--global", "--get", "user.name"]),
+            Ok(o) if o.code == 0 && !o.stdout.trim().is_empty()
+        );
+        let user_email_set = matches!(
+            runner::run_git_no_repo(&["config", "--global", "--get", "user.email"]),
+            Ok(o) if o.code == 0 && !o.stdout.trim().is_empty()
+        );
+        let credential_helper_set = matches!(
+            runner::run_git_no_repo(&["config", "--global", "--get", "credential.helper"]),
+            Ok(o) if o.code == 0 && !o.stdout.trim().is_empty()
+        );
+
+        Ok(GitSetupStatus {
+            installed: true,
+            version,
+            user_name_set,
+            user_email_set,
+            credential_helper_set,
+        })
     })
     .await
     .map_err(|e| e.to_string())?
