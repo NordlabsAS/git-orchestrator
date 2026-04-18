@@ -22,6 +22,21 @@ pub fn current_head_sha(repo_path: &Path) -> Result<Option<String>, GitError> {
     Ok(Some(sha.to_string()))
 }
 
+/// Total number of commits reachable from HEAD. Returns `Ok(None)` on an
+/// unborn branch or any other failure — the caller (status builder) just
+/// omits the field so the UI falls back gracefully.
+pub fn commit_count(repo_path: &Path) -> Result<Option<u32>, GitError> {
+    let out = run_git_raw(repo_path, &["rev-list", "--count", "HEAD"])?;
+    if out.code != 0 {
+        return Ok(None);
+    }
+    let n = out.stdout.trim();
+    if n.is_empty() {
+        return Ok(None);
+    }
+    Ok(n.parse().ok())
+}
+
 /// Count of commits reachable from `from_sha` but not from `to_sha`.
 /// Used to report how many local commits a force-pull would discard.
 pub fn rev_count_between(

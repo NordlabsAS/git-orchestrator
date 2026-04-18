@@ -34,6 +34,7 @@ pub fn build_status(repo: &Repo) -> RepoStatus {
         has_submodules: false,
         diverged: false,
         unpushed_no_upstream: None,
+        commit_count: None,
         error: None,
     };
 
@@ -83,6 +84,7 @@ pub fn build_status(repo: &Repo) -> RepoStatus {
     s.has_submodules = status::has_submodules(path);
     s.latest_commit = log::latest_commit(path);
     s.last_fetch = read_last_fetch(path);
+    s.commit_count = status::commit_count(path).ok().flatten();
 
     if let Ok(Some(url)) = remote::origin_url(path) {
         s.remote_url = remote::to_web_url(&url);

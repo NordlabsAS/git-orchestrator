@@ -44,6 +44,8 @@ pub fn run() {
             git_ops::get_action_log,
             git_ops::force_pull_preview,
             git_ops::diagnose_auth,
+            git_ops::sign_in_remote,
+            git_ops::git_setup_status,
             // system
             system::open_folder,
             system::open_terminal,

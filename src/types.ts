@@ -32,6 +32,7 @@ export interface RepoStatus {
   hasSubmodules: boolean;
   diverged: boolean;
   unpushedNoUpstream: number | null;
+  commitCount: number | null;
   error: string | null;
 }
 
@@ -154,3 +155,17 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   bulkConcurrency: 4,
 };
+
+export interface SignInResult {
+  ok: boolean;
+  timedOut: boolean;
+  message: string;
+}
+
+export interface GitSetupStatus {
+  installed: boolean;
+  version: string | null;
+  userNameSet: boolean;
+  userEmailSet: boolean;
+  credentialHelperSet: boolean;
+}

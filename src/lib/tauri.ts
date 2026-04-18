@@ -12,11 +12,13 @@ import type {
   Commit,
   ForcePullPreview,
   ForcePullResult,
+  GitSetupStatus,
   IgnoredPath,
   Repo,
   RepoStatus,
   ScanAddResult,
   ScanResult,
+  SignInResult,
 } from "../types";
 
 // ---- repos ----
@@ -77,6 +79,12 @@ export function forcePullPreview(id: number): Promise<ForcePullPreview> {
 }
 export function diagnoseAuth(id: number): Promise<string> {
   return invoke("diagnose_auth", { id });
+}
+export function signInRemote(id: number): Promise<SignInResult> {
+  return invoke("sign_in_remote", { id });
+}
+export function gitSetupStatus(): Promise<GitSetupStatus> {
+  return invoke("git_setup_status");
 }
 
 // ---- system ----
