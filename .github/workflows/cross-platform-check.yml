@@ -8,12 +8,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - "src-tauri/**"
-      - "src/**"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/cross-platform-check.yml"
+  pull_request:
+    branches: [main]
 
 jobs:
   check:
