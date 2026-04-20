@@ -207,6 +207,11 @@ export function openRemote(id: number): Promise<void> {
 export function openCommit(id: number, sha: string): Promise<void> {
   return invoke("open_commit", { id, sha });
 }
+/** Open any http(s) URL in the user's default browser. Scheme-checked
+ *  at the backend. Used by the Open-PR button in the commit dialog. */
+export function openUrl(url: string): Promise<void> {
+  return invoke("open_url", { url });
+}
 export function setTrayTooltip(text: string): Promise<void> {
   return invoke("set_tray_tooltip", { text });
 }

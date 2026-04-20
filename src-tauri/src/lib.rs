@@ -64,6 +64,7 @@ pub fn run() {
             system::open_terminal,
             system::open_remote,
             system::open_commit,
+            system::open_url,
             system::set_tray_tooltip,
             // settings
             settings::get_setting,
