@@ -108,12 +108,30 @@ export function gitPullFf(id: number): Promise<string> {
 export function gitForcePull(id: number): Promise<ForcePullResult> {
   return invoke("git_force_pull", { id });
 }
+/** Stage + commit + optionally push.
+ *
+ *  `pushMode` forces a specific mode for this call ("direct" pushes the
+ *  current branch; "pr" creates a new branch from default and pushes
+ *  that so the user can open a PR). Pass `null` to let the backend
+ *  resolve via the per-repo override + global setting.
+ *
+ *  `branchName` is required when `pushMode` (effective or forced) is "pr"
+ *  AND the repo is currently on its default branch — otherwise ignored.
+ */
 export function gitCommitPush(
   id: number,
   message: string,
   push: boolean,
+  pushMode?: PushModePref | null,
+  branchName?: string | null,
 ): Promise<CommitPushResult> {
-  return invoke("git_commit_push", { id, message, push });
+  return invoke("git_commit_push", {
+    id,
+    message,
+    push,
+    pushMode: pushMode ?? null,
+    branchName: branchName ?? null,
+  });
 }
 /**
  * Bulk fetch. `ids` undefined = every repo; otherwise restrict to the
