@@ -95,9 +95,15 @@ pub async fn auto_fetch_run_once(app: AppHandle) -> Result<AutoFetchReport, Stri
 
 /// Start the background scheduler. Called once from `lib.rs::setup`.
 /// The task runs for the lifetime of the app process and exits when
-/// tokio's runtime shuts down.
+/// the runtime shuts down.
+///
+/// Uses `tauri::async_runtime::spawn` rather than `tokio::spawn` because
+/// `setup` runs before Tauri enters its main event loop, so there is no
+/// ambient tokio runtime when this is called — `tokio::spawn` would
+/// panic with "there is no reactor running". Tauri's async runtime
+/// handle is valid from `setup` onward.
 pub fn spawn_scheduler(app: AppHandle) {
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         scheduler_loop(app).await;
     });
 }
