@@ -54,6 +54,7 @@ jobs:
             build-essential \
             libssl-dev \
             libxdo-dev \
+            libfuse2 \
             pkg-config
 
       - uses: actions/setup-node@v4
