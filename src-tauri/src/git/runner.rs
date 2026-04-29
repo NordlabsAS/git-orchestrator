@@ -44,22 +44,29 @@ impl From<GitError> for String {
 ///   otherwise run on every `git status` / index refresh.
 /// - `protocol.ext.allow=never` — blocks `ext::<cmd>` remote helpers on
 ///   fetch/pull (CVE-2017-1000117 class).
-/// - `credential.helper=` (empty) — resets the credential-helper chain, so a
-///   repo-local `.git/config` entry like `credential.helper=!evil-cmd` cannot
-///   sneak into the chain git consults during fetch/pull/sign-in. Git runs
-///   helper values prefixed with `!` as shell commands (see `git-config(1)`),
-///   and list-valued config keys normally **append** across scopes — so
-///   without this reset, a malicious repo could achieve RCE the moment the
-///   user clicks fetch. After the reset we re-pin the user's own global
-///   helper (see `resolved_credential_helper`) so their configured sign-in
-///   flow still works.
 ///
 /// These are `-c` flags, not env vars, so they only apply to this process.
 /// A user's own `git` usage in a terminal is unaffected. Aliases and
 /// `core.sshCommand` are NOT neutralised here — see `docs/security.md`.
-const BASE_HARDENING_FLAGS: &[&str] = &[
+const ALWAYS_HARDENING_FLAGS: &[&str] = &[
     "-c", "core.fsmonitor=",
     "-c", "protocol.ext.allow=never",
+];
+
+/// Resets the credential-helper chain so a repo-local `.git/config` entry
+/// like `credential.helper=!evil-cmd` cannot sneak into the chain git
+/// consults during fetch/pull/sign-in. Git runs helper values prefixed with
+/// `!` as shell commands (see `git-config(1)`), and list-valued config keys
+/// normally **append** across scopes — so without this reset, a malicious
+/// repo could achieve RCE the moment the user clicks fetch. After the reset
+/// we re-pin the user's own global helper (see `resolved_credential_helper`)
+/// so their configured sign-in flow still works.
+///
+/// **Only applied alongside the re-pin** — applying the reset *without*
+/// the re-pin (e.g. for `git config --get credential.helper` detection)
+/// would clear the chain and make the detection observe an empty value
+/// even when the user has a helper configured globally.
+const CREDENTIAL_HELPER_RESET: &[&str] = &[
     "-c", "credential.helper=",
 ];
 
@@ -89,10 +96,17 @@ fn new_git_command(
     pin_credential_helper: bool,
 ) -> Command {
     let mut cmd = Command::new("git");
-    for flag in BASE_HARDENING_FLAGS {
+    for flag in ALWAYS_HARDENING_FLAGS {
         cmd.arg(flag);
     }
     if pin_credential_helper {
+        // Reset the helper chain *and* re-pin the user's global helper as
+        // an atomic pair. Applying the reset on its own (e.g. for the
+        // detection query) would make `git config --get credential.helper`
+        // observe an empty chain even when one is configured globally.
+        for flag in CREDENTIAL_HELPER_RESET {
+            cmd.arg(flag);
+        }
         if let Some(helper) = resolved_credential_helper() {
             cmd.arg("-c").arg(format!("credential.helper={helper}"));
         }

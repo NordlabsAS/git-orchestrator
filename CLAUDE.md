@@ -105,21 +105,31 @@ conflict.
    the window; right-click opens the menu.
 
 10. **Git invocations carry per-call hardening flags.** `runner::new_git_command`
-    always prefixes every `git` call with
-    `-c core.fsmonitor= -c protocol.ext.allow=never -c credential.helper=`,
-    so a hostile `.git/config` in a watched repo cannot trigger RCE on the
-    refresh timer. See `BASE_HARDENING_FLAGS` in `git/runner.rs` and the
-    residual risks (SSH command, aliases, hooks) catalogued in `docs/security.md`.
-    The third flag — `credential.helper=` (empty) — resets git's helper chain
-    so a repo-local `credential.helper=!shell-cmd` cannot be appended to the
-    chain git consults during fetch/pull/sign-in. Helper values prefixed with
-    `!` are run as shell commands by git; without this reset, any watched
-    repo could inject RCE the moment the user clicked Fetch. After the reset
-    we re-pin the user's GLOBAL helper via `resolved_credential_helper()` so
-    legitimate fetch/pull/sign-in flows still work. The global helper is
-    cached at the runner layer and invalidated via
-    `invalidate_credential_helper_cache()` after
-    `configure_credential_helper` writes a new value.
+    prefixes every `git` call with `-c core.fsmonitor= -c protocol.ext.allow=never`
+    (`ALWAYS_HARDENING_FLAGS`), so a hostile `.git/config` in a watched repo
+    cannot trigger RCE on the refresh timer. See `git/runner.rs` and the residual
+    risks (SSH command, aliases, hooks) catalogued in `docs/security.md`.
+
+    On top of that, real fetch/pull/sign-in invocations get a paired
+    **credential-helper reset + re-pin**: `-c credential.helper= -c credential.helper=<resolved>`.
+    The empty reset clears the chain so a repo-local `credential.helper=!shell-cmd`
+    cannot inject — helper values prefixed with `!` are run as shell commands by
+    git, and list-valued config keys append across scopes, so without this reset
+    any watched repo could achieve RCE the moment the user clicked Fetch. The
+    re-pin restores the user's GLOBAL helper via `resolved_credential_helper()`
+    so legitimate sign-in flows still work.
+
+    Critical: the reset and the re-pin must always be applied **as a pair**.
+    Applying just the reset (e.g. for the `git config --get credential.helper`
+    detection query) clears the chain *while the detection is reading it*, so
+    the user appears to have no helper even when they do. The reset lives in
+    `CREDENTIAL_HELPER_RESET` and is gated on `pin_credential_helper: true` —
+    detection passes `false` so no reset is applied to that one query, and the
+    detection sees the user's real config.
+
+    The global helper is cached at the runner layer and invalidated via
+    `invalidate_credential_helper_cache()` after `configure_credential_helper`
+    writes a new value.
 
 11. **UNC paths are rejected at add-time (Windows only).** `commands/repos.rs::canonical`
     refuses paths beginning with `\\` or `//` under `#[cfg(windows)]`. Running
